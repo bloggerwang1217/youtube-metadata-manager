@@ -142,12 +142,27 @@ class VideoAdmin(ModelView, model=Video):
         Video.JaTitle: lambda m, a: (m.JaTitle or m.ZhHantTitle or m.EnTitle or '(未設定)')[:35] + ('...' if (m.JaTitle or m.ZhHantTitle or m.EnTitle or '') and len(m.JaTitle or m.ZhHantTitle or m.EnTitle or '') > 35 else ''),
     }
     
+    # 自訂額外欄位：Clone 按鈕
+    column_extra_row_actions = [
+        {
+            "name": "clone",
+            "label": "Clone",
+            "icon": "fa fa-copy",
+            "url": lambda m: f"/admin/video/clone/{m.VideoID}"
+        }
+    ]
+    
     column_searchable_list = [Video.ZhHantTitle, Video.JaTitle, Video.EnTitle, Video.YouTubeLink]
     column_sortable_list = [Video.VideoID, Video.UploadTime, Video.Length]
     column_default_sort = [(Video.VideoID, True)]
     
     # Enable details view
     can_view_details = True
+    
+    # 自訂操作：新增 Clone 按鈕
+    can_create = True
+    can_edit = True
+    can_delete = True
     
     # Group form fields
     form_columns = [
@@ -177,19 +192,27 @@ class StyleAdmin(ModelView, model=Style):
     icon = "fa-solid fa-link"
     category = "🔗 關聯資料"
     
-    column_list = [Style.ID, Style.VideoID, Style.MusicID, Style.Style]
-    column_sortable_list = [Style.ID, Style.VideoID, Style.MusicID]
-    column_default_sort = (Style.ID, True)
+    column_list = [Style.ID, 'video', 'music', Style.Style]
+    column_sortable_list = [Style.ID]
+    column_default_sort = [(Style.ID, True)]
     
-    # Show related objects in form
+    # 表單使用 AJAX 搜尋（Video 和 Music）
     form_ajax_refs = {
         'video': {
-            'fields': ('ZhHantTitle', 'JaTitle'),
+            'fields': ('VideoID', 'JaTitle', 'ZhHantTitle'),
             'order_by': 'VideoID',
         },
         'music': {
-            'fields': ('JaName', 'ZhHantName'),
+            'fields': ('MusicID', 'JaName', 'ZhHantName'),
             'order_by': 'MusicID',
+        }
+    }
+    
+    # Style 欄位配置
+    form_args = {
+        'Style': {
+            'default': 'Cover',
+            'description': '常用選項：Cover, ShortCover, Collection, ShortMeme, ShortLife'
         }
     }
 
@@ -221,9 +244,28 @@ class VersionAdmin(ModelView, model=Version):
     icon = "fa-solid fa-code-branch"
     category = "🔗 關聯資料"
     
-    column_list = [Version.ID, Version.StreamingID, Version.MusicID, Version.Version]
-    column_sortable_list = [Version.ID, Version.StreamingID, Version.MusicID]
-    column_default_sort = (Version.ID, True)
+    column_list = [Version.ID, 'streaming', 'music', Version.Version]
+    column_sortable_list = [Version.ID]
+    column_default_sort = [(Version.ID, True)]
+    
+    # 表單使用 AJAX 搜尋
+    form_ajax_refs = {
+        'streaming': {
+            'fields': ('StreamingID', 'JaTitle', 'ZhHantTitle'),
+            'order_by': 'StreamingID',
+        },
+        'music': {
+            'fields': ('MusicID', 'JaName', 'ZhHantName'),
+            'order_by': 'MusicID',
+        }
+    }
+    
+    # Version 欄位配置
+    form_args = {
+        'Version': {
+            'description': '常用選項：Inst, Piano'
+        }
+    }
 
 
 class CreatorAdmin(ModelView, model=Creator):
@@ -251,9 +293,82 @@ class RoleAdmin(ModelView, model=Role):
     icon = "fa-solid fa-user-tag"
     category = "🔗 關聯資料"
     
-    column_list = [Role.RoleID, Role.CreatorID, Role.MusicID, Role.Role]
-    column_sortable_list = [Role.RoleID, Role.CreatorID, Role.MusicID]
-    column_default_sort = (Role.RoleID, True)
+    column_list = [Role.RoleID, 'creator', 'music', Role.Role]
+    column_sortable_list = [Role.RoleID]
+    column_default_sort = [(Role.RoleID, True)]
+    
+    # 表單使用 AJAX 搜尋
+    form_ajax_refs = {
+        'creator': {
+            'fields': ('CreatorID', 'CreatorName', 'ChannelName'),
+            'order_by': 'CreatorID',
+        },
+        'music': {
+            'fields': ('MusicID', 'JaName', 'ZhHantName'),
+            'order_by': 'MusicID',
+        }
+    }
+    
+    # Role 欄位配置
+    form_args = {
+        'Role': {
+            'description': '常用選項：Artist, Composer, Singer'
+        }
+    }
+
+
+# Clone functionality route
+@app.get("/admin/video/clone/{video_id}")
+async def clone_video(video_id: int, request: Request):
+    """Clone a video record"""
+    session = db_service.get_session()
+    try:
+        original = session.query(Video).filter(Video.VideoID == video_id).first()
+        if not original:
+            return RedirectResponse(url="/admin/video/list", status_code=303)
+        
+        # Create new video with copied data
+        new_video = Video(
+            YouTubeLink=None,  # 清空 YouTube 連結
+            UploadTime=None,   # 清空上傳時間
+            ZhHantTitle=original.ZhHantTitle,
+            JaTitle=original.JaTitle,
+            EnTitle=original.EnTitle,
+            ZhHantDescription=original.ZhHantDescription,
+            JaDescription=original.JaDescription,
+            EnDescription=original.EnDescription,
+            ZhHantSubSource=original.ZhHantSubSource,
+            JaSubSource=original.JaSubSource,
+            EnSubSource=original.EnSubSource,
+            Instrumental=original.Instrumental,
+            Sheet=original.Sheet,
+            InstrumentalType=original.InstrumentalType,
+            SubtitleType=original.SubtitleType,
+            GumroadSheet=original.GumroadSheet,
+            Length=None  # 清空長度
+        )
+        
+        session.add(new_video)
+        session.commit()
+        session.refresh(new_video)
+        
+        # 複製 Style 關聯
+        original_styles = session.query(Style).filter(Style.VideoID == video_id).all()
+        for style in original_styles:
+            new_style = Style(
+                VideoID=new_video.VideoID,
+                MusicID=style.MusicID,
+                Style=style.Style
+            )
+            session.add(new_style)
+        
+        session.commit()
+        
+        # 重導向到編輯頁面
+        return RedirectResponse(url=f"/admin/video/edit/{new_video.VideoID}", status_code=303)
+        
+    finally:
+        session.close()
 
 
 # Add all data management views
