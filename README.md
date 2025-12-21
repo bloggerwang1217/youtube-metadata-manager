@@ -5,12 +5,15 @@ Modern FastAPI-based tool to manage YouTube video metadata with multi-language s
 ## ✨ Features
 
 - 🎛️ **Web Dashboard** (SQLAdmin) - Modern admin interface for managing videos, music, and metadata
+- 🎬 **Video Sync Manager** - Visual interface to sync metadata and subtitles to YouTube
 - 📝 Update video titles and descriptions in multiple languages (中文, 日本語, English)
-- 📄 Upload subtitles (.srt files) automatically
+- 📄 Upload subtitles (.srt files) with drag & drop
 - 🏷️ Copy and transform tags from reference videos
 - 🗄️ Database management with SQLAlchemy ORM
 - 🔐 Secure credential management with environment variables
 - 🚀 FastAPI with auto-generated API documentation
+- ⚡ Batch processing for multiple videos
+- 📊 Auto-fetch video duration and upload time from YouTube
 
 ## 🏗️ Architecture
 
@@ -53,11 +56,12 @@ Copy `.env.example` to `.env` and fill in your credentials:
 
 ```bash
 ./start_dashboard.sh
-# Or manually:
-# uvicorn app:app --reload
 ```
 
-Then open: http://localhost:8000/admin
+Then open:
+- **Video Sync Manager**: http://localhost:8000/video
+- **Admin Dashboard**: http://localhost:8000/admin
+- **API Docs**: http://localhost:8000/docs
 
 ### 4. Or Use CLI
 
@@ -69,11 +73,22 @@ Then open: http://localhost:8000/admin
 
 ## 📊 Dashboard Features
 
+### Admin Dashboard (`/admin`)
 - **Videos Management**: Create, read, update, delete video metadata
 - **Music Database**: Manage song information
 - **Style Linking**: Connect videos with music entries
 - **Search & Filter**: Find videos quickly
 - **Bulk Operations**: Edit multiple entries
+
+### Video Sync Manager (`/video`) ⭐ NEW
+- **Visual Video List**: See all videos with YouTube links
+- **Drag & Drop Upload**: Upload subtitle files easily
+- **One-Click Sync**: Sync metadata and subtitles to YouTube
+- **Batch Processing**: Select and sync multiple videos at once
+- **Auto Metadata Fetch**: Automatically get video duration and upload time
+- **Real-time Progress**: See sync status in real-time
+
+👉 **See [VIDEO_SYNC_GUIDE.md](VIDEO_SYNC_GUIDE.md) for detailed usage**
 
 ## 🔧 Usage Examples
 

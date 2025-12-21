@@ -45,6 +45,9 @@ Thumbs.db
 *.log
 logs/
 
+# Temporary files
+temp/
+
 # Backup files
 *.backup
 .imgpath_backup/

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Sync - YouTube Metadata Manager</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- DataTables CSS -->
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        .drop-zone {
+            border: 3px dashed #ccc;
+            border-radius: 10px;
+            padding: 50px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: #0d6efd;
+            background: #e7f1ff;
+        }
+        .file-list {
+            margin-top: 15px;
+        }
+        .file-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #e9ecef;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .progress-container {
+            margin-top: 20px;
+        }
+        .status-badge {
+            font-size: 0.85rem;
+        }
+        .video-title {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-video"></i> YouTube Metadata Manager
+            </a>
+            <div>
+                <a href="/admin" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-cog"></i> Admin Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row mb-3">
+            <div class="col">
+                <h2><i class="fas fa-sync-alt"></i> Video Sync Manager</h2>
+                <p class="text-muted">批次同步 YouTube 影片的 metadata 和字幕</p>
+            </div>
+            <div class="col-auto">
+                <button id="batchSyncBtn" class="btn btn-primary" disabled>
+                    <i class="fas fa-cloud-upload-alt"></i> 批次同步選中項目
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <table id="videoTable" class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAll"></th>
+                            <th>VideoID</th>
+                            <th>標題</th>
+                            <th>YouTube Link</th>
+                            <th>上傳時間</th>
+                            <th>長度</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for video in videos %}
+                        <tr data-video-id="{{ video.VideoID }}">
+                            <td>
+                                <input type="checkbox" class="video-checkbox" 
+                                       value="{{ video.VideoID }}"
+                                       {% if not video.YouTubeLink %}disabled{% endif %}>
+                            </td>
+                            <td>{{ video.VideoID }}</td>
+                            <td class="video-title" title="{{ video.ZhHantTitle }}">
+                                {{ video.ZhHantTitle or video.JaTitle or video.EnTitle or '(未設定)' }}
+                            </td>
+                            <td>
+                                {% if video.YouTubeLink %}
+                                <a href="{{ video.YouTubeLink }}" target="_blank">
+                                    <i class="fas fa-external-link-alt"></i> {{ video.YouTubeLink[:30] }}...
+                                </a>
+                                {% else %}
+                                <span class="text-muted">(未設定)</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if video.UploadTime %}
+                                {{ video.UploadTime.strftime('%Y-%m-%d %H:%M') }}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if video.Length %}
+                                {{ '%d:%02d' % (video.Length // 60, video.Length % 60) }}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if video.YouTubeLink %}
+                                <button class="btn btn-sm btn-success sync-btn" 
+                                        data-video-id="{{ video.VideoID }}"
+                                        data-youtube-link="{{ video.YouTubeLink }}">
+                                    <i class="fas fa-sync"></i> Sync
+                                </button>
+                                {% else %}
+                                <button class="btn btn-sm btn-secondary" disabled>
+                                    <i class="fas fa-ban"></i> N/A
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Modal -->
+    <div class="modal fade" id="syncModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-sync-alt"></i> 同步 Video #<span id="modalVideoId"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Progress Container - Moved to top -->
+                    <div class="progress-container" id="progressContainer" style="display: none;">
+                        <h6>同步進度：</h6>
+                        <div class="progress mb-2">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 id="progressBar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div id="statusLog" class="alert alert-secondary"></div>
+                        <hr>
+                    </div>
+
+                    <div class="alert alert-info" id="uploadAlert">
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>選項 1：</strong>上傳字幕檔案並同步 metadata<br>
+                        <strong>選項 2：</strong>跳過字幕，只同步 metadata 和取得影片資訊
+                    </div>
+
+                    <div class="drop-zone" id="dropZone">
+                        <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
+                        <h5>將字幕檔案拖到這裡（可選）</h5>
+                        <p class="text-muted">或點擊選擇檔案｜可跳過直接同步</p>
+                        <input type="file" id="fileInput" multiple accept=".srt" style="display: none;">
+                    </div>
+
+                    <div class="file-list" id="fileList"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-warning" id="skipSubtitleBtn">
+                        <i class="fas fa-forward"></i> 跳過字幕直接同步
+                    </button>
+                    <button type="button" class="btn btn-primary" id="startSyncBtn" disabled>
+                        <i class="fas fa-play"></i> 上傳字幕並同步
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+    <script>
+        let currentVideoId = null;
+        let uploadedFiles = {};
+        const syncModal = new bootstrap.Modal(document.getElementById('syncModal'));
+
+        // Initialize DataTable
+        $(document).ready(function() {
+            $('#videoTable').DataTable({
+                pageLength: 25,
+                order: [[1, 'desc']],
+                language: {
+                    search: "搜尋:",
+                    lengthMenu: "顯示 _MENU_ 筆",
+                    info: "顯示 _START_ 到 _END_ 筆，共 _TOTAL_ 筆",
+                    paginate: {
+                        first: "第一頁",
+                        last: "最後頁",
+                        next: "下一頁",
+                        previous: "上一頁"
+                    }
+                }
+            });
+
+            // Select all checkbox
+            $('#selectAll').on('change', function() {
+                $('.video-checkbox:not(:disabled)').prop('checked', this.checked);
+                updateBatchSyncButton();
+            });
+
+            $('.video-checkbox').on('change', updateBatchSyncButton);
+        });
+
+        // Update batch sync button state
+        function updateBatchSyncButton() {
+            const checkedCount = $('.video-checkbox:checked').length;
+            $('#batchSyncBtn').prop('disabled', checkedCount === 0);
+            $('#batchSyncBtn').html(`<i class="fas fa-cloud-upload-alt"></i> 批次同步選中項目 (${checkedCount})`);
+        }
+
+        // Sync button click
+        $('.sync-btn').on('click', function() {
+            currentVideoId = $(this).data('video-id');
+            $('#modalVideoId').text(currentVideoId);
+            uploadedFiles = {};
+            $('#fileList').html('');
+            $('#progressContainer').hide();
+            $('#uploadAlert').show();
+            $('#dropZone').show();
+            $('#fileList').show();
+            $('#startSyncBtn').prop('disabled', true);
+            $('#skipSubtitleBtn').prop('disabled', false);
+            syncModal.show();
+        });
+
+        // Drag and drop
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            const fileListDiv = document.getElementById('fileList');
+            
+            Array.from(files).forEach(file => {
+                if (file.name.endsWith('.srt')) {
+                    uploadedFiles[file.name] = file;
+                    
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'file-item';
+                    fileItem.innerHTML = `
+                        <span><i class="fas fa-file-alt"></i> ${file.name}</span>
+                        <button class="btn btn-sm btn-danger" onclick="removeFile('${file.name}')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    `;
+                    fileListDiv.appendChild(fileItem);
+                }
+            });
+
+            // Check if we have all 3 required files
+            const hasAll = ['ja_subtitle.srt', 'en_subtitle.srt', 'zh-Hant_subtitle.srt']
+                .every(name => uploadedFiles[name]);
+            
+            $('#startSyncBtn').prop('disabled', !hasAll);
+        }
+
+        function removeFile(filename) {
+            delete uploadedFiles[filename];
+            $('#fileList').empty();
+            Object.keys(uploadedFiles).forEach(name => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <span><i class="fas fa-file-alt"></i> ${name}</span>
+                    <button class="btn btn-sm btn-danger" onclick="removeFile('${name}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                document.getElementById('fileList').appendChild(fileItem);
+            });
+
+            const hasAll = ['ja_subtitle.srt', 'en_subtitle.srt', 'zh-Hant_subtitle.srt']
+                .every(name => uploadedFiles[name]);
+            $('#startSyncBtn').prop('disabled', !hasAll);
+        }
+
+        // Start sync with subtitles
+        $('#startSyncBtn').on('click', async function() {
+            await performSync(true);
+        });
+
+        // Skip subtitle and sync directly
+        $('#skipSubtitleBtn').on('click', async function() {
+            await performSync(false);
+        });
+
+        async function performSync(uploadSubtitles) {
+            // Hide upload UI and show progress
+            $('#uploadAlert').hide();
+            $('#dropZone').hide();
+            $('#fileList').hide();
+            $('#progressContainer').show();
+            $('#startSyncBtn').prop('disabled', true);
+            $('#skipSubtitleBtn').prop('disabled', true);
+
+            try {
+                if (uploadSubtitles) {
+                    // Upload subtitles first
+                    updateProgress(10, '上傳字幕檔案中...');
+                    const formData = new FormData();
+                    Object.values(uploadedFiles).forEach(file => {
+                        formData.append('files', file);
+                    });
+
+                    const uploadRes = await fetch(`/api/upload-subtitles/${currentVideoId}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!uploadRes.ok) throw new Error('上傳字幕失敗');
+                    updateProgress(30, '✓ 字幕上傳完成');
+                } else {
+                    updateProgress(20, '⊘ 跳過字幕上傳');
+                }
+
+                // Sync to YouTube
+                updateProgress(50, '同步 metadata 到 YouTube...');
+                const syncRes = await fetch(`/api/sync-video/${currentVideoId}`, {
+                    method: 'POST'
+                });
+                
+                const result = await syncRes.json();
+                
+                if (result.success) {
+                    let message = '✓ 同步完成！';
+                    if (result.video_info) {
+                        if (result.video_info.duration) {
+                            message += `<br>影片長度: ${Math.floor(result.video_info.duration / 60)}:${(result.video_info.duration % 60).toString().padStart(2, '0')}`;
+                        }
+                        if (result.video_info.upload_time) {
+                            message += `<br>上傳時間: ${result.video_info.upload_time}`;
+                        }
+                    }
+                    updateProgress(100, message);
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    updateProgress(100, '✗ 同步失敗: ' + result.message, true);
+                }
+            } catch (error) {
+                updateProgress(100, '✗ 發生錯誤: ' + error.message, true);
+            } finally {
+                // Reset buttons after delay if error occurred
+                setTimeout(() => {
+                    $('#startSyncBtn').prop('disabled', false);
+                    $('#skipSubtitleBtn').prop('disabled', false);
+                }, 3000);
+            }
+        }
+
+        function updateProgress(percent, message, isError = false) {
+            $('#progressBar').css('width', percent + '%').text(percent + '%');
+            const alertClass = isError ? 'alert-danger' : 'alert-success';
+            $('#statusLog').html(`<div class="${alertClass}">${message}</div>`);
+        }
+
+        // Batch sync
+        $('#batchSyncBtn').on('click', async function() {
+            const selectedIds = $('.video-checkbox:checked').map(function() {
+                return $(this).val();
+            }).get();
+
+            if (selectedIds.length === 0) return;
+
+            if (!confirm(`確定要同步 ${selectedIds.length} 支影片嗎？`)) return;
+
+            $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 處理中...');
+
+            try {
+                const res = await fetch('/api/batch-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_ids: selectedIds })
+                });
+
+                const result = await res.json();
+                alert(`完成！成功: ${result.success_count}, 失敗: ${result.failed_count}`);
+                location.reload();
+            } catch (error) {
+                alert('批次同步失敗: ' + error.message);
+            } finally {
+                $(this).prop('disabled', false);
+                updateBatchSyncButton();
+            }
+        });
+    </script>
+</body>
+</html>
