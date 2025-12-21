@@ -1,100 +1,161 @@
 # YouTube Metadata Manager
 
-A tool to manage YouTube video metadata (titles, descriptions, subtitles, tags) with multi-language support.
+Modern FastAPI-based tool to manage YouTube video metadata with multi-language support and admin dashboard.
 
-## Features
+## ✨ Features
 
-- 📝 Update video titles and descriptions in multiple languages (Chinese, English, Japanese)
+- 🎛️ **Web Dashboard** (SQLAdmin) - Modern admin interface for managing videos, music, and metadata
+- 📝 Update video titles and descriptions in multiple languages (中文, 日本語, English)
 - 📄 Upload subtitles (.srt files) automatically
 - 🏷️ Copy and transform tags from reference videos
-- 🗄️ Fetch video metadata from MariaDB database
+- 🗄️ Database management with SQLAlchemy ORM
 - 🔐 Secure credential management with environment variables
+- 🚀 FastAPI with auto-generated API documentation
 
-## Setup
+## 🏗️ Architecture
 
-1. Clone the repository:
-```bash
-git clone <your-repo-url>
-cd youtube-metadata-manager
+```
+youtube-metadata-manager/
+├── app.py                      # FastAPI + SQLAdmin dashboard
+├── cli.py                      # Command-line interface
+├── models.py                   # SQLAlchemy ORM models
+├── services/
+│   ├── youtube_service.py      # YouTube API operations
+│   ├── database_service.py     # Database CRUD operations
+│   ├── description_service.py  # Description generation
+│   └── tag_service.py          # Tag management
+├── requirements.txt
+└── .env                        # Configuration (not in git)
 ```
 
-2. Install dependencies:
+## 🚀 Quick Start
+
+### 1. Install Dependencies
+
 ```bash
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install packages
 pip install -r requirements.txt
 ```
 
-3. Configure environment variables:
-   - Copy `.env.example` to `.env`
-   - Fill in your credentials:
-     - YouTube API key
-     - Google OAuth client secrets file path
-     - MariaDB connection details
-     - File paths for subtitles and tag replacement CSV
+### 2. Configure Environment
 
-4. Place your Google OAuth client secret JSON file in the project directory
+Copy `.env.example` to `.env` and fill in your credentials:
+- YouTube API key
+- Google OAuth client secrets file path
+- MariaDB connection details
+- File paths for subtitles and tag replacement CSV
 
-5. Prepare your subtitle files in the configured folder with names:
-   - `ja_subtitle.srt`
-   - `en_subtitle.srt`
-   - `zh-Hant_subtitle.srt`
+### 3. Start Dashboard (Recommended)
 
-## Usage
-
-### CLI Mode
-
-Run the main script:
 ```bash
-python metadata_manager.py
+./start_dashboard.sh
+# Or manually:
+# uvicorn app:app --reload
 ```
 
-Follow the prompts to:
-1. Enter the YouTube video link
-2. Enter the database Video ID
-3. Authenticate with YouTube (first time only)
-4. Upload subtitles
-5. Update titles and descriptions
-6. Update tags from a reference video
+Then open: http://localhost:8000/admin
 
-### Original Jupyter Notebook
+### 4. Or Use CLI
 
-The original workflow is preserved in `metadata_saver.ipynb` for reference.
-
-## Configuration
-
-### Database Schema
-
-The tool expects the following tables:
-- `Video`: Video metadata (VideoID, YouTubeLink, titles, descriptions, etc.)
-- `Style`: Style information (Style, InstrumentalType, SubtitleType, etc.)
-- `Music`: Music information (MusicID, names, SpotifyID, MV, etc.)
-
-### Tag Replacement CSV
-
-Format: `original_word,replacement_word` (one per line)
-
-Example:
-```csv
-Old Artist,New Artist
-Original Title,Cover Title
+```bash
+./run.sh
+# Or manually:
+# python cli.py
 ```
 
-## Security Notes
+## 📊 Dashboard Features
 
-⚠️ **IMPORTANT**: Never commit these files to Git:
+- **Videos Management**: Create, read, update, delete video metadata
+- **Music Database**: Manage song information
+- **Style Linking**: Connect videos with music entries
+- **Search & Filter**: Find videos quickly
+- **Bulk Operations**: Edit multiple entries
+
+## 🔧 Usage Examples
+
+### Add New Video via Dashboard
+
+1. Go to http://localhost:8000/admin
+2. Click "Videos" → "Create"
+3. Fill in all language versions (titles, descriptions)
+4. Save
+
+### Update Existing Video via CLI
+
+```bash
+python cli.py
+# Follow prompts:
+# 1. Enter YouTube video link
+# 2. Enter database VideoID
+# 3. Authenticate (first time only)
+# 4. Subtitles will be uploaded
+# 5. Metadata will be updated
+# 6. Tags will be copied from reference video
+```
+
+## 📡 API Endpoints
+
+- `GET /` - API information
+- `GET /health` - Health check
+- `GET /admin` - Admin dashboard
+- `GET /docs` - Interactive API documentation (Swagger UI)
+
+## 🗄️ Database Schema
+
+### Video Table
+- VideoID, YouTubeLink, UploadTime
+- ZhHantTitle, JaTitle, EnTitle
+- Descriptions (3 languages)
+- Subtitle sources, Sheet music links
+- InstrumentalType, SubtitleType
+
+### Music Table
+- MusicID, WorkID
+- Names (3 languages)
+- ThemeType, SpotifyID, MV, OfficialArtist
+
+### Style Table
+- Links Video ↔ Music
+- Style type (Cover, Arrangement, etc.)
+
+## 🔐 Security
+
+⚠️ **Never commit**:
 - `.env` (contains secrets)
 - `client_secret_*.json` (OAuth credentials)
 - `token.json` (OAuth token)
 
-These are already in `.gitignore`.
+All are in `.gitignore`.
 
-## Future Enhancements
+## 🛠️ Development
 
-- [ ] Web dashboard UI (Flask)
+### Install dev dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### Run with auto-reload
+```bash
+uvicorn app:app --reload
+```
+
+### Access API docs
+http://localhost:8000/docs
+
+## 📋 TODO / Future Enhancements
+
 - [ ] Direct video upload support
 - [ ] Batch processing for multiple videos
-- [ ] Preview before publishing changes
-- [ ] Thumbnail upload support
+- [ ] Thumbnail upload
+- [ ] Analytics dashboard
+- [ ] Export/Import metadata (JSON/CSV)
+- [ ] User authentication for dashboard
+- [ ] Webhook notifications
 
-## License
+## 📄 License
 
 Private use only.

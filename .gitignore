@@ -1,4 +1,50 @@
-*apps.googleusercontent.com.json
+# Environment variables (CRITICAL - contains secrets)
 .env
 
-venv
+# Google OAuth credentials (CRITICAL - contains API keys)
+*apps.googleusercontent.com.json
+client_secret*.json
+token.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Database
+*.db
+*.sqlite
+*.sql
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.bak
+
+# Logs
+*.log
+logs/
+
+# Backup files
+*.backup
+.imgpath_backup/
