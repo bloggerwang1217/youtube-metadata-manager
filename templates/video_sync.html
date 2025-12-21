@@ -173,10 +173,18 @@
                         <hr>
                     </div>
 
-                    <div class="alert alert-info" id="uploadAlert">
-                        <i class="fas fa-info-circle"></i> 
-                        <strong>選項 1：</strong>上傳字幕檔案並同步 metadata<br>
-                        <strong>選項 2：</strong>跳過字幕，只同步 metadata 和取得影片資訊
+                    <!-- Subtitle Type Selection -->
+                    <div class="mb-3">
+                        <label for="subtitleType" class="form-label">
+                            <i class="fas fa-closed-captioning"></i> 字幕類型
+                        </label>
+                        <select class="form-select" id="subtitleType">
+                            <option value="Lyrics" selected>Lyrics（歌詞）</option>
+                            <option value="BloggerTalk">BloggerTalk（我心裡的話）</option>
+                        </select>
+                        <div class="form-text">
+                            選擇字幕類型會決定上傳到 YouTube 的字幕名稱
+                        </div>
                     </div>
 
                     <div class="drop-zone" id="dropZone">
@@ -295,13 +303,42 @@
             
             Array.from(files).forEach(file => {
                 if (file.name.endsWith('.srt')) {
-                    uploadedFiles[file.name] = file;
+                    // Detect language from filename
+                    let detectedLang = null;
+                    let newName = null;
+                    
+                    if (file.name.includes('ja') || file.name.includes('jp') || file.name.includes('日')) {
+                        detectedLang = 'ja';
+                        newName = 'ja_subtitle.srt';
+                    } else if (file.name.includes('en') || file.name.includes('英')) {
+                        detectedLang = 'en';
+                        newName = 'en_subtitle.srt';
+                    } else if (file.name.includes('zh') || file.name.includes('中') || file.name.includes('tw') || file.name.includes('hant')) {
+                        detectedLang = 'zh-Hant';
+                        newName = 'zh-Hant_subtitle.srt';
+                    }
+                    
+                    // Use detected name or original name
+                    const finalName = newName || file.name;
+                    
+                    // Create a new File object with the new name
+                    const renamedFile = new File([file], finalName, { type: file.type });
+                    uploadedFiles[finalName] = renamedFile;
                     
                     const fileItem = document.createElement('div');
                     fileItem.className = 'file-item';
+                    
+                    // Show rename notification if renamed
+                    const renameNotice = (newName && newName !== file.name) 
+                        ? `<small class="text-success"><i class="fas fa-check"></i> 已重新命名為 ${newName}</small>` 
+                        : '';
+                    
                     fileItem.innerHTML = `
-                        <span><i class="fas fa-file-alt"></i> ${file.name}</span>
-                        <button class="btn btn-sm btn-danger" onclick="removeFile('${file.name}')">
+                        <div>
+                            <span><i class="fas fa-file-alt"></i> ${file.name}</span>
+                            ${renameNotice}
+                        </div>
+                        <button class="btn btn-sm btn-danger" onclick="removeFile('${finalName}')">
                             <i class="fas fa-times"></i>
                         </button>
                     `;
@@ -309,11 +346,9 @@
                 }
             });
 
-            // Check if we have all 3 required files
-            const hasAll = ['ja_subtitle.srt', 'en_subtitle.srt', 'zh-Hant_subtitle.srt']
-                .every(name => uploadedFiles[name]);
-            
-            $('#startSyncBtn').prop('disabled', !hasAll);
+            // Enable button if at least one subtitle file is uploaded
+            const hasAny = Object.keys(uploadedFiles).length > 0;
+            $('#startSyncBtn').prop('disabled', !hasAny);
         }
 
         function removeFile(filename) {
@@ -331,26 +366,26 @@
                 document.getElementById('fileList').appendChild(fileItem);
             });
 
-            const hasAll = ['ja_subtitle.srt', 'en_subtitle.srt', 'zh-Hant_subtitle.srt']
-                .every(name => uploadedFiles[name]);
-            $('#startSyncBtn').prop('disabled', !hasAll);
+            const hasAny = Object.keys(uploadedFiles).length > 0;
+            $('#startSyncBtn').prop('disabled', !hasAny);
         }
 
         // Start sync with subtitles
         $('#startSyncBtn').on('click', async function() {
-            await performSync(true);
+            const subtitleType = $('#subtitleType').val();
+            await performSync(true, subtitleType);
         });
 
         // Skip subtitle and sync directly
         $('#skipSubtitleBtn').on('click', async function() {
-            await performSync(false);
+            await performSync(false, null);
         });
 
-        async function performSync(uploadSubtitles) {
+        async function performSync(uploadSubtitles, subtitleType) {
             // Hide upload UI and show progress
-            $('#uploadAlert').hide();
             $('#dropZone').hide();
             $('#fileList').hide();
+            $('#subtitleType').parent().hide();
             $('#progressContainer').show();
             $('#startSyncBtn').prop('disabled', true);
             $('#skipSubtitleBtn').prop('disabled', true);
@@ -375,9 +410,9 @@
                     updateProgress(20, '⊘ 跳過字幕上傳');
                 }
 
-                // Sync to YouTube
+                // Sync to YouTube with subtitle type
                 updateProgress(50, '同步 metadata 到 YouTube...');
-                const syncRes = await fetch(`/api/sync-video/${currentVideoId}`, {
+                const syncRes = await fetch(`/api/sync-video/${currentVideoId}?subtitle_type=${subtitleType || ''}`, {
                     method: 'POST'
                 });
                 

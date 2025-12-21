@@ -435,7 +435,7 @@ async def upload_subtitles(video_id: int, files: List[UploadFile] = File(...)):
 
 
 @app.post("/api/sync-video/{video_id}")
-async def sync_video(video_id: int):
+async def sync_video(video_id: int, subtitle_type: str = None):
     """Sync video metadata and subtitles to YouTube"""
     try:
         # Get video data from database
@@ -464,7 +464,9 @@ async def sync_video(video_id: int):
             'Lyrics': {'ja': "歌詞", "en": "English Lyrics Translation", "zh-Hant": "中文歌詞翻譯"},
             'BloggerTalk': {'ja': "僕の心の話", "en": "My heartfelt story", "zh-Hant": "我心裡的話"}
         }
-        name = subtitle_names.get(video_data.get('SubtitleType', 'Lyrics'), subtitle_names['Lyrics'])
+        # Use provided subtitle_type or fall back to database value or default
+        selected_type = subtitle_type if subtitle_type else video_data.get('SubtitleType', 'Lyrics')
+        name = subtitle_names.get(selected_type, subtitle_names['Lyrics'])
         
         temp_dir = Path("temp") / str(video_id)
         subtitle_uploaded = False
