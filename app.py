@@ -131,18 +131,20 @@ class VideoAdmin(ModelView, model=Video):
     
     column_list = [
         Video.VideoID, 
-        Video.ZhHantTitle, 
         Video.JaTitle,
-        Video.EnTitle,
         Video.YouTubeLink,
         Video.UploadTime,
-        Video.InstrumentalType,
-        Video.SubtitleType
+        Video.Length
     ]
     
+    # 格式化欄位顯示
+    column_formatters = {
+        Video.JaTitle: lambda m, a: (m.JaTitle or m.ZhHantTitle or m.EnTitle or '(未設定)')[:35] + ('...' if (m.JaTitle or m.ZhHantTitle or m.EnTitle or '') and len(m.JaTitle or m.ZhHantTitle or m.EnTitle or '') > 35 else ''),
+    }
+    
     column_searchable_list = [Video.ZhHantTitle, Video.JaTitle, Video.EnTitle, Video.YouTubeLink]
-    column_sortable_list = [Video.VideoID, Video.UploadTime]
-    column_default_sort = (Video.VideoID, True)
+    column_sortable_list = [Video.VideoID, Video.UploadTime, Video.Length]
+    column_default_sort = [(Video.VideoID, True)]
     
     # Enable details view
     can_view_details = True
