@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqladmin import Admin, ModelView, BaseView
 from sqladmin import expose
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, or_
 from typing import List
 import aiofiles
 from pathlib import Path
@@ -53,7 +53,8 @@ admin = Admin(
     app, 
     engine,
     title="YouTube Metadata Manager",
-    base_url="/admin"
+    base_url="/admin",
+    templates_dir="templates"
 )
 
 # Initialize services
@@ -111,7 +112,7 @@ class MusicAdmin(ModelView, model=Music):
         Music.JaName,
         Music.ZhHantName,
         Music.EnName,
-        Music.ThemeType,
+        Music.ThemeType
     ]
     
     column_searchable_list = [Music.JaName, Music.ZhHantName, Music.EnName]
@@ -121,6 +122,10 @@ class MusicAdmin(ModelView, model=Music):
     # Show relationships
     column_details_exclude_list = []
     can_view_details = True
+
+
+from sqladmin import ModelView
+from wtforms import SelectField
 
 
 class VideoAdmin(ModelView, model=Video):
@@ -139,18 +144,8 @@ class VideoAdmin(ModelView, model=Video):
     
     # 格式化欄位顯示
     column_formatters = {
-        Video.JaTitle: lambda m, a: (m.JaTitle or m.ZhHantTitle or m.EnTitle or '(未設定)')[:35] + ('...' if (m.JaTitle or m.ZhHantTitle or m.EnTitle or '') and len(m.JaTitle or m.ZhHantTitle or m.EnTitle or '') > 35 else ''),
+        Video.JaTitle: lambda m, a: (m.JaTitle or m.ZhHantTitle or m.EnTitle or '(未設定)')[:35] + ('...' if (m.JaTitle or m.ZhHantTitle or m.EnTitle or '') and len(m.JaTitle or m.ZhHantTitle or m.EnTitle or '') > 35 else '')
     }
-    
-    # 自訂額外欄位：Clone 按鈕
-    column_extra_row_actions = [
-        {
-            "name": "clone",
-            "label": "Clone",
-            "icon": "fa fa-copy",
-            "url": lambda m: f"/admin/video/clone/{m.VideoID}"
-        }
-    ]
     
     column_searchable_list = [Video.ZhHantTitle, Video.JaTitle, Video.EnTitle, Video.YouTubeLink]
     column_sortable_list = [Video.VideoID, Video.UploadTime, Video.Length]
@@ -158,8 +153,6 @@ class VideoAdmin(ModelView, model=Video):
     
     # Enable details view
     can_view_details = True
-    
-    # 自訂操作：新增 Clone 按鈕
     can_create = True
     can_edit = True
     can_delete = True
@@ -195,16 +188,17 @@ class StyleAdmin(ModelView, model=Style):
     column_list = [Style.ID, 'video', 'music', Style.Style]
     column_sortable_list = [Style.ID]
     column_default_sort = [(Style.ID, True)]
+    column_searchable_list = ["Style"]
     
     # 表單使用 AJAX 搜尋（Video 和 Music）
     form_ajax_refs = {
         'video': {
             'fields': ('VideoID', 'JaTitle', 'ZhHantTitle'),
-            'order_by': 'VideoID',
+            'order_by': Video.VideoID,
         },
         'music': {
             'fields': ('MusicID', 'JaName', 'ZhHantName'),
-            'order_by': 'MusicID',
+            'order_by': Music.MusicID,
         }
     }
     
@@ -215,6 +209,26 @@ class StyleAdmin(ModelView, model=Style):
             'description': '常用選項：Cover, ShortCover, Collection, ShortMeme, ShortLife'
         }
     }
+
+    def search_query(self, stmt, term):
+        if not term:
+            return stmt
+        like_term = f"%{term}%"
+        return (
+            stmt.join(Style.video)
+                .join(Style.music)
+                .where(
+                    or_(
+                        Style.Style.ilike(like_term),
+                        Video.JaTitle.ilike(like_term),
+                        Video.ZhHantTitle.ilike(like_term),
+                        Video.EnTitle.ilike(like_term),
+                        Music.JaName.ilike(like_term),
+                        Music.ZhHantName.ilike(like_term),
+                        Music.EnName.ilike(like_term),
+                    )
+                )
+        )
 
 
 class StreamingAdmin(ModelView, model=Streaming):
@@ -247,16 +261,17 @@ class VersionAdmin(ModelView, model=Version):
     column_list = [Version.ID, 'streaming', 'music', Version.Version]
     column_sortable_list = [Version.ID]
     column_default_sort = [(Version.ID, True)]
+    column_searchable_list = ["Version"]
     
     # 表單使用 AJAX 搜尋
     form_ajax_refs = {
         'streaming': {
-            'fields': ('StreamingID', 'JaTitle', 'ZhHantTitle'),
-            'order_by': 'StreamingID',
+            'fields': ('JaTitle', 'EnTitle', 'ZhHantTitle', 'ZhHansTitle'),
+            'order_by': Streaming.StreamingID,
         },
         'music': {
-            'fields': ('MusicID', 'JaName', 'ZhHantName'),
-            'order_by': 'MusicID',
+            'fields': ('JaName', 'EnName', 'ZhHantName'),
+            'order_by': Music.MusicID,
         }
     }
     
@@ -266,6 +281,26 @@ class VersionAdmin(ModelView, model=Version):
             'description': '常用選項：Inst, Piano'
         }
     }
+
+    def search_query(self, stmt, term):
+        if not term:
+            return stmt
+        like_term = f"%{term}%"
+        return (
+            stmt.join(Version.streaming)
+                .join(Version.music)
+                .where(
+                    or_(
+                        Version.Version.ilike(like_term),
+                        Streaming.JaTitle.ilike(like_term),
+                        Streaming.EnTitle.ilike(like_term),
+                        Streaming.ZhHantTitle.ilike(like_term),
+                        Music.JaName.ilike(like_term),
+                        Music.ZhHantName.ilike(like_term),
+                        Music.EnName.ilike(like_term),
+                    )
+                )
+        )
 
 
 class CreatorAdmin(ModelView, model=Creator):
@@ -296,16 +331,17 @@ class RoleAdmin(ModelView, model=Role):
     column_list = [Role.RoleID, 'creator', 'music', Role.Role]
     column_sortable_list = [Role.RoleID]
     column_default_sort = [(Role.RoleID, True)]
+    column_searchable_list = ["Role"]
     
     # 表單使用 AJAX 搜尋
     form_ajax_refs = {
         'creator': {
             'fields': ('CreatorID', 'CreatorName', 'ChannelName'),
-            'order_by': 'CreatorID',
+            'order_by': Creator.CreatorID,
         },
         'music': {
             'fields': ('MusicID', 'JaName', 'ZhHantName'),
-            'order_by': 'MusicID',
+            'order_by': Music.MusicID,
         }
     }
     
@@ -316,70 +352,237 @@ class RoleAdmin(ModelView, model=Role):
         }
     }
 
+    def search_query(self, stmt, term):
+        if not term:
+            return stmt
+        like_term = f"%{term}%"
+        return (
+            stmt.join(Role.creator)
+                .join(Role.music)
+                .where(
+                    or_(
+                        Role.Role.ilike(like_term),
+                        Creator.CreatorName.ilike(like_term),
+                        Creator.ChannelName.ilike(like_term),
+                        Music.JaName.ilike(like_term),
+                        Music.ZhHantName.ilike(like_term),
+                        Music.EnName.ilike(like_term),
+                    )
+                )
+        )
 
-# Clone functionality route
+
+def _clone_video(session, video_id: int):
+    original = session.query(Video).filter(Video.VideoID == video_id).first()
+    if not original:
+        return None
+
+    new_video = Video(
+        YouTubeLink=None,
+        UploadTime=None,
+        ZhHantTitle=original.ZhHantTitle,
+        JaTitle=original.JaTitle,
+        EnTitle=original.EnTitle,
+        ZhHantDescription=original.ZhHantDescription,
+        JaDescription=original.JaDescription,
+        EnDescription=original.EnDescription,
+        ZhHantSubSource=original.ZhHantSubSource,
+        JaSubSource=original.JaSubSource,
+        EnSubSource=original.EnSubSource,
+        Instrumental=original.Instrumental,
+        Sheet=original.Sheet,
+        InstrumentalType=original.InstrumentalType,
+        SubtitleType=original.SubtitleType,
+        GumroadSheet=original.GumroadSheet,
+        Length=None
+    )
+
+    session.add(new_video)
+    session.commit()
+    session.refresh(new_video)
+
+    original_styles = session.query(Style).filter(Style.VideoID == video_id).all()
+    for style in original_styles:
+        session.add(Style(VideoID=new_video.VideoID, MusicID=style.MusicID, Style=style.Style))
+    session.commit()
+    return new_video.VideoID
+
+
+def _clone_work(session, work_id: int):
+    original = session.query(Work).filter(Work.WorkID == work_id).first()
+    if not original:
+        return None
+    new_work = Work(Type=original.Type, JaName=original.JaName, ZhHantName=original.ZhHantName, EnName=original.EnName)
+    session.add(new_work)
+    session.commit()
+    session.refresh(new_work)
+    return new_work.WorkID
+
+
+def _clone_music(session, music_id: int):
+    original = session.query(Music).filter(Music.MusicID == music_id).first()
+    if not original:
+        return None
+    new_music = Music(
+        WorkID=original.WorkID,
+        JaName=original.JaName,
+        ZhHantName=original.ZhHantName,
+        EnName=original.EnName,
+        ThemeType=original.ThemeType,
+        SpotifyID=original.SpotifyID,
+        MV=original.MV,
+        OfficialArtist=original.OfficialArtist
+    )
+    session.add(new_music)
+    session.commit()
+    session.refresh(new_music)
+
+    original_roles = session.query(Role).filter(Role.MusicID == music_id).all()
+    for role in original_roles:
+        session.add(Role(CreatorID=role.CreatorID, MusicID=new_music.MusicID, Role=role.Role))
+    session.commit()
+    return new_music.MusicID
+
+
+def _clone_streaming(session, streaming_id: int):
+    original = session.query(Streaming).filter(Streaming.StreamingID == streaming_id).first()
+    if not original:
+        return None
+    new_streaming = Streaming(
+        EnTitle=original.EnTitle,
+        JaTitle=original.JaTitle,
+        ZhHantTitle=original.ZhHantTitle,
+        ZhHansTitle=original.ZhHansTitle,
+        Instrumental=original.Instrumental,
+        InstrumentalType=original.InstrumentalType,
+        SmartLink=None
+    )
+    session.add(new_streaming)
+    session.commit()
+    session.refresh(new_streaming)
+
+    original_versions = session.query(Version).filter(Version.StreamingID == streaming_id).all()
+    for version in original_versions:
+        session.add(Version(StreamingID=new_streaming.StreamingID, MusicID=version.MusicID, Version=version.Version))
+    session.commit()
+    return new_streaming.StreamingID
+
+
+def _clone_creator(session, creator_id: int):
+    original = session.query(Creator).filter(Creator.CreatorID == creator_id).first()
+    if not original:
+        return None
+    new_creator = Creator(
+        CreatorName=f"{original.CreatorName} (Copy)",
+        ChannelName=original.ChannelName,
+        ChannelLink=None
+    )
+    session.add(new_creator)
+    session.commit()
+    session.refresh(new_creator)
+    return new_creator.CreatorID
+
+
+@app.api_route("/api/clone/{entity}/{pk}", methods=["GET", "POST"])
+async def api_clone(entity: str, pk: int):
+    session = db_service.get_session()
+    try:
+        new_id = None
+        if entity == "video":
+            new_id = _clone_video(session, pk)
+        elif entity == "work":
+            new_id = _clone_work(session, pk)
+        elif entity == "music":
+            new_id = _clone_music(session, pk)
+        elif entity == "streaming":
+            new_id = _clone_streaming(session, pk)
+        elif entity == "creator":
+            new_id = _clone_creator(session, pk)
+
+        if not new_id:
+            return JSONResponse({"success": False, "message": "Record not found"}, status_code=404)
+        return JSONResponse({"success": True, "new_id": new_id, "message": "複製成功"})
+    except Exception as e:
+        session.rollback()
+        return JSONResponse({"success": False, "message": str(e)}, status_code=500)
+    finally:
+        session.close()
+
+
 @app.get("/admin/video/clone/{video_id}")
 async def clone_video(video_id: int, request: Request):
     """Clone a video record"""
     session = db_service.get_session()
     try:
-        original = session.query(Video).filter(Video.VideoID == video_id).first()
-        if not original:
+        new_id = _clone_video(session, video_id)
+        if not new_id:
             return RedirectResponse(url="/admin/video/list", status_code=303)
-        
-        # Create new video with copied data
-        new_video = Video(
-            YouTubeLink=None,  # 清空 YouTube 連結
-            UploadTime=None,   # 清空上傳時間
-            ZhHantTitle=original.ZhHantTitle,
-            JaTitle=original.JaTitle,
-            EnTitle=original.EnTitle,
-            ZhHantDescription=original.ZhHantDescription,
-            JaDescription=original.JaDescription,
-            EnDescription=original.EnDescription,
-            ZhHantSubSource=original.ZhHantSubSource,
-            JaSubSource=original.JaSubSource,
-            EnSubSource=original.EnSubSource,
-            Instrumental=original.Instrumental,
-            Sheet=original.Sheet,
-            InstrumentalType=original.InstrumentalType,
-            SubtitleType=original.SubtitleType,
-            GumroadSheet=original.GumroadSheet,
-            Length=None  # 清空長度
-        )
-        
-        session.add(new_video)
-        session.commit()
-        session.refresh(new_video)
-        
-        # 複製 Style 關聯
-        original_styles = session.query(Style).filter(Style.VideoID == video_id).all()
-        for style in original_styles:
-            new_style = Style(
-                VideoID=new_video.VideoID,
-                MusicID=style.MusicID,
-                Style=style.Style
-            )
-            session.add(new_style)
-        
-        session.commit()
-        
-        # 重導向到編輯頁面
-        return RedirectResponse(url=f"/admin/video/edit/{new_video.VideoID}", status_code=303)
-        
+        return RedirectResponse(url=f"/admin/video/edit/{new_id}", status_code=303)
     finally:
         session.close()
 
 
-# Add all data management views
+@app.get("/admin/work/clone/{work_id}")
+async def clone_work(work_id: int):
+    """Clone a work record"""
+    session = db_service.get_session()
+    try:
+        new_id = _clone_work(session, work_id)
+        if not new_id:
+            return RedirectResponse(url="/admin/work/list", status_code=303)
+        return RedirectResponse(url=f"/admin/work/edit/{new_id}", status_code=303)
+    finally:
+        session.close()
+
+
+@app.get("/admin/music/clone/{music_id}")
+async def clone_music(music_id: int):
+    """Clone a music record"""
+    session = db_service.get_session()
+    try:
+        new_id = _clone_music(session, music_id)
+        if not new_id:
+            return RedirectResponse(url="/admin/music/list", status_code=303)
+        return RedirectResponse(url=f"/admin/music/edit/{new_id}", status_code=303)
+    finally:
+        session.close()
+
+
+@app.get("/admin/streaming/clone/{streaming_id}")
+async def clone_streaming(streaming_id: int):
+    """Clone a streaming record"""
+    session = db_service.get_session()
+    try:
+        new_id = _clone_streaming(session, streaming_id)
+        if not new_id:
+            return RedirectResponse(url="/admin/streaming/list", status_code=303)
+        return RedirectResponse(url=f"/admin/streaming/edit/{new_id}", status_code=303)
+    finally:
+        session.close()
+
+
+@app.get("/admin/creator/clone/{creator_id}")
+async def clone_creator(creator_id: int):
+    """Clone a creator record"""
+    session = db_service.get_session()
+    try:
+        new_id = _clone_creator(session, creator_id)
+        if not new_id:
+            return RedirectResponse(url="/admin/creator/list", status_code=303)
+        return RedirectResponse(url=f"/admin/creator/edit/{new_id}", status_code=303)
+    finally:
+        session.close()
+
+
+# Add all data management views (ordered for sidebar)
+admin.add_view(VideoAdmin)
 admin.add_view(WorkAdmin)
 admin.add_view(MusicAdmin)
-admin.add_view(VideoAdmin)
-admin.add_view(StreamingAdmin)
 admin.add_view(CreatorAdmin)
+admin.add_view(StreamingAdmin)
 admin.add_view(StyleAdmin)
-admin.add_view(VersionAdmin)
 admin.add_view(RoleAdmin)
+admin.add_view(VersionAdmin)
 
 
 # Redirect /admin to /admin/video/list
@@ -615,6 +818,97 @@ async def root(request: Request):
             "stats": stats,
             "recent_videos": recent_videos
         })
+    finally:
+        session.close()
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "database": DATABASE_URL.split("@")[1]}
+
+
+# ============ Clone Routes ============
+
+@app.get("/api/clone/video/{video_id}")
+async def clone_video(video_id: int):
+    """Clone a video record"""
+    session = db_service.get_session()
+    try:
+        new_id = _clone_video(session, video_id)
+        if not new_id:
+            return JSONResponse({"success": False, "message": "Video not found"}, status_code=404)
+        return JSONResponse({
+            "success": True,
+            "new_id": new_id,
+            "message": f"Video cloned successfully! New ID: {new_id}"
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return JSONResponse({"success": False, "message": str(e)}, status_code=500)
+    finally:
+        session.close()
+
+
+@app.get("/api/clone/music/{music_id}")
+async def clone_music(music_id: int):
+    """Clone a music record"""
+    session = db_service.get_session()
+    try:
+        new_id = _clone_music(session, music_id)
+        if not new_id:
+            return JSONResponse({"success": False, "message": "Music not found"}, status_code=404)
+        return JSONResponse({
+            "success": True,
+            "new_id": new_id,
+            "message": f"Music cloned successfully! New ID: {new_id}"
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return JSONResponse({"success": False, "message": str(e)}, status_code=500)
+    finally:
+        session.close()
+
+
+@app.get("/api/clone/streaming/{streaming_id}")
+async def clone_streaming(streaming_id: int):
+    """Clone a streaming record"""
+    session = db_service.get_session()
+    try:
+        new_id = _clone_streaming(session, streaming_id)
+        if not new_id:
+            return JSONResponse({"success": False, "message": "Streaming not found"}, status_code=404)
+        return JSONResponse({
+            "success": True,
+            "new_id": new_id,
+            "message": f"Streaming cloned successfully! New ID: {new_id}"
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return JSONResponse({"success": False, "message": str(e)}, status_code=500)
+    finally:
+        session.close()
+
+
+@app.get("/api/clone/creator/{creator_id}")
+async def clone_creator(creator_id: int):
+    """Clone a creator record"""
+    session = db_service.get_session()
+    try:
+        new_id = _clone_creator(session, creator_id)
+        if not new_id:
+            return JSONResponse({"success": False, "message": "Creator not found"}, status_code=404)
+        return JSONResponse({
+            "success": True,
+            "new_id": new_id,
+            "message": f"Creator cloned successfully! New ID: {new_id}"
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return JSONResponse({"success": False, "message": str(e)}, status_code=500)
     finally:
         session.close()
 

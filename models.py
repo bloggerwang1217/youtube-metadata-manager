@@ -43,7 +43,8 @@ class Music(Base):
     versions = relationship("Version", back_populates="music")
     
     def __repr__(self):
-        return f"<Music {self.MusicID}: {self.JaName}>"
+        title = self.JaName or self.EnName or self.ZhHantName or ""
+        return f"<Music {self.MusicID}: {title}>"
 
 
 class Video(Base):
@@ -107,7 +108,8 @@ class Streaming(Base):
     versions = relationship("Version", back_populates="streaming")
     
     def __repr__(self):
-        return f"<Streaming {self.StreamingID}: {self.JaTitle}>"
+        title = self.JaTitle or self.EnTitle or self.ZhHantTitle or self.ZhHansTitle or ""
+        return f"<Streaming {self.StreamingID}: {title}>"
 
 
 class Version(Base):
