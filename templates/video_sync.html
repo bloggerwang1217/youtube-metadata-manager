@@ -13,38 +13,26 @@
     
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link href="/static/css/style.css" rel="stylesheet">
     
     <style>
-        .drop-zone {
-            border: 3px dashed #ccc;
-            border-radius: 10px;
-            padding: 50px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            background: #f8f9fa;
-        }
-        .drop-zone:hover, .drop-zone.drag-over {
-            border-color: #0d6efd;
-            background: #e7f1ff;
-        }
         .file-list {
             margin-top: 15px;
         }
         .file-item {
-            padding: 8px;
-            margin: 5px 0;
-            background: #e9ecef;
-            border-radius: 5px;
+            padding: 10px;
+            margin: 8px 0;
+            background: #f8f9fc;
+            border: 1px solid #e3e6f0;
+            border-radius: 0.35rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         .progress-container {
             margin-top: 20px;
-        }
-        .status-badge {
-            font-size: 0.85rem;
         }
         .video-title {
             max-width: 300px;
@@ -55,98 +43,107 @@
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-dark">
+    <nav class="navbar navbar-dark navbar-expand-lg">
         <div class="container-fluid">
             <a class="navbar-brand" href="/">
-                <i class="fas fa-video"></i> YouTube Metadata Manager
+                <i class="fas fa-video me-2"></i>YouTube Metadata Manager
             </a>
-            <div>
-                <a href="/admin" class="btn btn-outline-light btn-sm">
-                    <i class="fas fa-cog"></i> Admin Dashboard
-                </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a href="/admin" class="btn btn-outline-light btn-sm">
+                            <i class="fas fa-cog"></i> Admin Dashboard
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
 
-    <div class="container-fluid mt-4">
-        <div class="row mb-3">
+    <div class="container-fluid mt-5 px-4">
+        <div class="row mb-4 align-items-center">
             <div class="col">
-                <h2><i class="fas fa-sync-alt"></i> Video Sync Manager</h2>
-                <p class="text-muted">批次同步 YouTube 影片的 metadata 和字幕</p>
+                <h2 class="page-header-title"><i class="fas fa-sync-alt me-2"></i>Video Sync Manager</h2>
+                <p class="text-muted">批次同步 YouTube 影片資訊與字幕</p>
             </div>
             <div class="col-auto">
-                <button id="batchSyncBtn" class="btn btn-primary" disabled>
-                    <i class="fas fa-cloud-upload-alt"></i> 批次同步選中項目
+                <button id="batchSyncBtn" class="btn btn-primary shadow-sm" disabled>
+                    <i class="fas fa-cloud-upload-alt me-1"></i> 批次同步所選
                 </button>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card shadow mb-4">
             <div class="card-body">
-                <table id="videoTable" class="table table-striped table-hover">
-                    <thead>
-                        <tr>
-                            <th><input type="checkbox" id="selectAll"></th>
-                            <th>VideoID</th>
-                            <th>標題</th>
-                            <th>YouTube Link</th>
-                            <th>上傳時間</th>
-                            <th>長度</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for video in videos %}
-                        <tr data-video-id="{{ video.VideoID }}">
-                            <td>
-                                <input type="checkbox" class="video-checkbox" 
-                                       value="{{ video.VideoID }}"
-                                       {% if not video.YouTubeLink %}disabled{% endif %}>
-                            </td>
-                            <td>{{ video.VideoID }}</td>
-                            <td class="video-title" title="{{ video.ZhHantTitle }}">
-                                {{ video.ZhHantTitle or video.JaTitle or video.EnTitle or '(未設定)' }}
-                            </td>
-                            <td>
-                                {% if video.YouTubeLink %}
-                                <a href="{{ video.YouTubeLink }}" target="_blank">
-                                    <i class="fas fa-external-link-alt"></i> {{ video.YouTubeLink[:30] }}...
-                                </a>
-                                {% else %}
-                                <span class="text-muted">(未設定)</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if video.UploadTime %}
-                                {{ video.UploadTime.strftime('%Y-%m-%d %H:%M') }}
-                                {% else %}
-                                <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if video.Length %}
-                                {{ '%d:%02d' % (video.Length // 60, video.Length % 60) }}
-                                {% else %}
-                                <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if video.YouTubeLink %}
-                                <button class="btn btn-sm btn-success sync-btn" 
-                                        data-video-id="{{ video.VideoID }}"
-                                        data-youtube-link="{{ video.YouTubeLink }}">
-                                    <i class="fas fa-sync"></i> Sync
-                                </button>
-                                {% else %}
-                                <button class="btn btn-sm btn-secondary" disabled>
-                                    <i class="fas fa-ban"></i> N/A
-                                </button>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table id="videoTable" class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAll"></th>
+                                <th>VideoID</th>
+                                <th>標題</th>
+                                <th>YouTube Link</th>
+                                <th>上傳時間</th>
+                                <th>長度</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for video in videos %}
+                            <tr data-video-id="{{ video.VideoID }}">
+                                <td>
+                                    <input type="checkbox" class="video-checkbox form-check-input" 
+                                           value="{{ video.VideoID }}"
+                                           {% if not video.YouTubeLink %}disabled{% endif %}>
+                                </td>
+                                <td><span class="badge bg-light text-dark border">{{ video.VideoID }}</span></td>
+                                <td class="video-title" title="{{ video.ZhHantTitle }}">
+                                    {{ video.ZhHantTitle or video.JaTitle or video.EnTitle or '(未設定)' }}
+                                </td>
+                                <td>
+                                    {% if video.YouTubeLink %}
+                                    <a href="{{ video.YouTubeLink }}" target="_blank" class="text-danger text-decoration-none">
+                                        <i class="fab fa-youtube"></i> Watch
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted small">(未設定)</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if video.UploadTime %}
+                                    {{ video.UploadTime.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if video.Length %}
+                                    {{ '%d:%02d' % (video.Length // 60, video.Length % 60) }}
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if video.YouTubeLink %}
+                                    <button class="btn btn-sm btn-success sync-btn shadow-sm" 
+                                            data-video-id="{{ video.VideoID }}"
+                                            data-youtube-link="{{ video.YouTubeLink }}">
+                                        <i class="fas fa-sync me-1"></i> Sync
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-sm btn-secondary" disabled>
+                                        <i class="fas fa-ban"></i> N/A
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -188,9 +185,9 @@
                     </div>
 
                     <div class="drop-zone" id="dropZone">
-                        <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
-                        <h5>將字幕檔案拖到這裡（可選）</h5>
-                        <p class="text-muted">或點擊選擇檔案｜可跳過直接同步</p>
+                        <i class="fas fa-cloud-upload-alt fa-2x mb-2 text-primary"></i>
+                        <h6 class="font-weight-bold">拖曳字幕檔案至此</h6>
+                        <p class="text-muted small mb-0">或點擊選擇檔案｜可跳過直接同步</p>
                         <input type="file" id="fileInput" multiple accept=".srt" style="display: none;">
                     </div>
 
@@ -244,18 +241,21 @@
 
             // Select all checkbox
             $('#selectAll').on('change', function() {
-                $('.video-checkbox:not(:disabled)').prop('checked', this.checked);
+                const isChecked = this.checked;
+                // Only affect visible checkboxes in the current page/search results
+                $('.video-checkbox:not(:disabled)').prop('checked', isChecked);
                 updateBatchSyncButton();
             });
 
-            $('.video-checkbox').on('change', updateBatchSyncButton);
+            // Use event delegation for dynamically created elements by DataTables
+            $('#videoTable').on('change', '.video-checkbox', updateBatchSyncButton);
         });
 
         // Update batch sync button state
         function updateBatchSyncButton() {
             const checkedCount = $('.video-checkbox:checked').length;
             $('#batchSyncBtn').prop('disabled', checkedCount === 0);
-            $('#batchSyncBtn').html(`<i class="fas fa-cloud-upload-alt"></i> 批次同步選中項目 (${checkedCount})`);
+            $('#batchSyncBtn').html(`<i class="fas fa-cloud-upload-alt me-1"></i> 批次同步所選 (${checkedCount})`);
         }
 
         // Sync button click
